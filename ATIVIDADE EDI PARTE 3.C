@@ -1,0 +1,339 @@
+```c
+#include "raylib.h"
+#include <stdlib.h>
+
+#define LARGURA_JANELA 800
+#define ALTURA_JANELA 600
+
+typedef struct {
+    float dano;
+    int alcance;
+} DadosArma;
+
+typedef struct {
+    int cura;
+} DadosPocao;
+
+typedef struct {
+    int absorcao;
+} DadosEscudo;
+
+typedef union {
+    DadosArma arma;
+    DadosPocao pocao;
+    DadosEscudo escudo;
+} DadosItem;
+
+typedef enum {
+    ITEM_ARMA,
+    ITEM_POCAO,
+    ITEM_ESCUDO
+} TipoItem;
+
+typedef struct {
+    Vector2 pos;
+    float raio;
+    TipoItem tipo;
+    DadosItem dados;
+    int coletado;
+} Item;
+
+typedef struct {
+    Vector2 pos;
+    float raio;
+    int vida;
+    float dano;
+    int armadura;
+} Jogador;
+
+
+Item *criarItens(int quantidade) {
+
+    Item *itens = (Item *) malloc(quantidade * sizeof(Item));
+
+    for (int i = 0; i < quantidade; i++) {
+
+        Item *it = (itens + i);
+
+        it->pos = (Vector2) {
+            GetRandomValue(30, LARGURA_JANELA - 30),
+            GetRandomValue(30, ALTURA_JANELA - 30)
+        };
+
+        it->raio = 12.0f;
+        it->coletado = 0;
+
+        it->tipo = (TipoItem)GetRandomValue(ITEM_ARMA, ITEM_ESCUDO);
+
+        if (it->tipo == ITEM_ARMA) {
+
+            it->dados.arma.dano =
+                (float)GetRandomValue(2, 8);
+
+            it->dados.arma.alcance =
+                GetRandomValue(1, 3);
+
+        } else if (it->tipo == ITEM_POCAO) {
+
+            it->dados.pocao.cura =
+                GetRandomValue(10, 30);
+
+            int sorteio = GetRandomValue(0, 9);
+
+            if (sorteio < 3) {
+                it->dados.pocao.cura =
+                    -GetRandomValue(10, 30);
+            }
+
+        } else {
+
+            it->dados.escudo.absorcao =
+                GetRandomValue(5, 15);
+        }
+    }
+
+    return itens;
+}
+
+
+void aplicarItem(Jogador *j, Item *item) {
+
+    switch (item->tipo) {
+
+        case ITEM_ARMA:
+
+            j->dano += item->dados.arma.dano;
+
+            break;
+
+
+        case ITEM_POCAO:
+
+            j->vida += item->dados.pocao.cura;
+
+            if (j->vida < 0) {
+                j->vida = 0;
+            }
+
+            break;
+
+
+        case ITEM_ESCUDO:
+
+            j->armadura += item->dados.escudo.absorcao;
+
+            break;
+    }
+
+    item->coletado = 1;
+}
+
+
+void desenharItem(Item *item) {
+
+    if (item->coletado) {
+        return;
+    }
+
+    if (item->tipo == ITEM_ARMA) {
+
+        DrawCircleV(
+            item->pos,
+            item->raio,
+            RED
+        );
+
+    } else if (item->tipo == ITEM_POCAO) {
+
+        if (item->dados.pocao.cura < 0) {
+
+            DrawCircleV(
+                item->pos,
+                item->raio,
+                PURPLE
+            );
+
+        } else {
+
+            DrawCircleV(
+                item->pos,
+                item->raio,
+                GREEN
+            );
+        }
+
+    } else if (item->tipo == ITEM_ESCUDO) {
+
+        DrawCircleV(
+            item->pos,
+            item->raio,
+            BLUE
+        );
+    }
+}
+
+
+int main(void) {
+
+    InitWindow(
+        LARGURA_JANELA,
+        ALTURA_JANELA,
+        "Itens - Union e Enum"
+    );
+
+    SetTargetFPS(60);
+
+    Jogador jogador;
+
+    jogador.pos = (Vector2){
+        LARGURA_JANELA / 2,
+        ALTURA_JANELA / 2
+    };
+
+    jogador.raio = 15;
+    jogador.vida = 100;
+    jogador.dano = 0;
+    jogador.armadura = 0;
+
+
+    int quantidadeItens = 10;
+
+    Item *itens = criarItens(quantidadeItens);
+
+
+    while (!WindowShouldClose()) {
+
+        if (IsKeyDown(KEY_RIGHT)) {
+            jogador.pos.x += 4;
+        }
+
+        if (IsKeyDown(KEY_LEFT)) {
+            jogador.pos.x -= 4;
+        }
+
+        if (IsKeyDown(KEY_UP)) {
+            jogador.pos.y -= 4;
+        }
+
+        if (IsKeyDown(KEY_DOWN)) {
+            jogador.pos.y += 4;
+        }
+
+
+        for (int i = 0; i < quantidadeItens; i++) {
+
+            Item *item = itens + i;
+
+            if (!item->coletado) {
+
+                float dx =
+                    item->pos.x - jogador.pos.x;
+
+                float dy =
+                    item->pos.y - jogador.pos.y;
+
+                float distancia =
+                    dx * dx + dy * dy;
+
+                float somaRaios =
+                    (item->raio + jogador.raio) *
+                    (item->raio + jogador.raio);
+
+                if (distancia <= somaRaios) {
+
+                    aplicarItem(
+                        &jogador,
+                        item
+                    );
+                }
+            }
+        }
+
+
+        BeginDrawing();
+
+        ClearBackground(RAYWHITE);
+
+
+        DrawCircleV(
+            jogador.pos,
+            jogador.raio,
+            BLUE
+        );
+
+
+        for (int i = 0; i < quantidadeItens; i++) {
+
+            desenharItem(itens + i);
+        }
+
+
+        DrawText(
+            TextFormat("Vida: %d", jogador.vida),
+            20,
+            20,
+            20,
+            BLACK
+        );
+
+        DrawText(
+            TextFormat("Dano: %.1f", jogador.dano),
+            20,
+            50,
+            20,
+            BLACK
+        );
+
+        DrawText(
+            TextFormat("Armadura: %d", jogador.armadura),
+            20,
+            80,
+            20,
+            BLACK
+        );
+
+
+        DrawText(
+            "Vermelho = Arma",
+            20,
+            520,
+            18,
+            BLACK
+        );
+
+        DrawText(
+            "Verde = Pocao",
+            20,
+            545,
+            18,
+            BLACK
+        );
+
+        DrawText(
+            "Roxo = Pocao envenenada",
+            250,
+            520,
+            18,
+            BLACK
+        );
+
+        DrawText(
+            "Azul = Escudo",
+            250,
+            545,
+            18,
+            BLACK
+        );
+
+
+        EndDrawing();
+    }
+
+
+    free(itens);
+
+    CloseWindow();
+
+    return 0;
+}
+```
